@@ -3,7 +3,9 @@
 ## 📋 Overview
 
 A real-time computer vision system to monitor hygiene protocol compliance in pizza stores. The system detects whether workers use a scooper when handling ingredients from designated ROIs (Regions of Interest) and flags violations.
-![Uploading Screenshot 2026-02-01 211611.png…]()
+
+![Uploading Dashboard.png…]()
+
 
 ## 🏗️ Architecture
 
@@ -435,4 +437,4 @@ This project is for educational/commercial use.
 
 ---
 
-**Last Updated:** January 2026
+**Last Updated:** February 2026
