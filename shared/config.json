@@ -1,0 +1,15 @@
+{
+  "video_path": "Sah w b3dha ghalt (2).mp4",
+  "frame_width": 1702,
+  "frame_height": 1038,
+  "rois": [
+    {
+      "id": 1,
+      "name": "cheese",
+      "x": 454,
+      "y": 350,
+      "w": 64,
+      "h": 37
+    }
+  ]
+}

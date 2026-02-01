@@ -1,0 +1,148 @@
+services:
+  # RabbitMQ Message Broker - Fixed for Windows
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_NODE_TYPE: disc
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+    user: "999:999"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - pizza_net
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pizza_user
+      POSTGRES_PASSWORD: pizza_pass
+      POSTGRES_DB: pizza_violations
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pizza_user -d pizza_violations"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pizza_net
+
+  # Frame Reader Service
+  frame_reader:
+    build: ./frame_reader
+    container_name: frame_reader
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: admin123
+      VIDEO_PATH: /app/videos/sah_w_b3dha_ghalt_2.mp4
+    volumes:
+      - ./videos:/app/videos
+      - ./shared:/app/shared
+    networks:
+      - pizza_net
+    restart: unless-stopped
+
+  # Detection Service
+  detection_service:
+    build: ./detection_service
+    container_name: detection_service
+    deploy:                              
+      resources:                         
+        reservations:                    
+          devices:                     
+            - driver: nvidia            
+              count: 1                   
+              capabilities: [gpu]   
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: admin123
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: pizza_user
+      POSTGRES_PASSWORD: pizza_pass
+      POSTGRES_DB: pizza_violations
+    volumes:
+      - ./models:/app/models
+      - ./shared:/app/shared
+      - ./violations:/app/violations
+    networks:
+      - pizza_net
+    restart: unless-stopped
+
+  # Streaming Service (Backend API)
+  streaming_service:
+    build: ./streaming_service
+    container_name: streaming_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=pizza_user
+      - POSTGRES_PASSWORD=pizza_pass
+      - POSTGRES_DB=pizza_violations
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASS=admin123
+    volumes:
+      - ./shared:/app/shared
+      - ./violations:/app/violations
+    networks:
+      - pizza_net
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    depends_on:
+      - streaming_service
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+    networks:
+      - pizza_net
+    restart: unless-stopped
+
+networks:
+  pizza_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
